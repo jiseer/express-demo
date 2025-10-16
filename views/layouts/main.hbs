@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <title>{{title}}</title>
+  {{#each cssChunks}}
+  <link rel="stylesheet" href="/static/css/{{this}}">
+  {{/each}}
+</head>
+
+<body>
+  {{> header}}
+  <main>{{{body}}}</main>
+  <script src="/static/common/js/jquery.js"></script>
+  {{#each jsChunks}}
+  <script src="/static/{{this}}"></script>
+  {{/each}}
+</body>
+
+</html>
