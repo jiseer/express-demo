@@ -1,6 +1,7 @@
 const { BusinessException } = require('../common/utils/error');
 const userRouter = require('./user')
 const categoryRouter = require('./category')
+const transactionRouter = require('./transaction')
 const loginAuth = require('../middlewares/login-auth')
 
 module.exports = function (app) {
@@ -18,6 +19,7 @@ module.exports = function (app) {
   // api接口
   app.use('/api/user', userRouter)
   app.use('/api/category', loginAuth, categoryRouter)
+  app.use('/api/transaction', loginAuth, transactionRouter);
   app.use('/api', function (req, res, next) {
     next(new BusinessException('API_REQUEST_404'))
   })

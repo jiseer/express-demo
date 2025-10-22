@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createUserSchema } = require('../common/validate-schema/user')
+const { createUserSchema } = require('../common/validate-schema')
 const { userModel } = require('../lib/db')
 const loginAuth = require('../middlewares/login-auth')
 const bcrypt = require('bcrypt');

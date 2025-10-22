@@ -1,27 +1,33 @@
+const { IS_DEV } = require("../common/utils/env");
 const { BusinessException } = require("../common/utils/error");
 
-function validateZod(schema, data, next) {
+function validateZod(schema, data) {
   const result = schema.safeParse(data);
   if (result.success) {
-    next();
+    return result.data;
   } else {
-    // const errors = result.error.issues.map(i => ({
-    //   field: i.path.join('.'),
-    //   message: i.message,
-    // }));
-    next(new BusinessException('BAD_REQUEST'))
+    if (IS_DEV) {
+      const errors = result.error.issues.map(i => ({
+        field: i.path.join('.'),
+        message: i.message,
+      }));
+      console.log('Zod Error ->', errors);
+    }
+    throw new BusinessException('BAD_REQUEST');
   }
 }
 
 function validateQueryZod(schema) {
   return (req, res, next) => {
-    validateZod(schema, req.query, next);
+    req.query = validateZod(schema, req.query, next);
+    next();
   };
 }
 
 function validateBodyZod(schema, data) {
   return (req, res, next) => {
-    validateZod(schema, req.body, next);
+    req.body = validateZod(schema, req.body, next);
+    next();
   };
 }
 

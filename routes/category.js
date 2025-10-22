@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { createCategorySchema, deleteCategorySchema } = require('../common/validate-schema/category')
+const { createCategorySchema, deleteOneSchema } = require('../common/validate-schema')
 const { categoryModel } = require('../lib/db')
-const { validateBodyZod, validateQueryZod } = require('../middlewares/validate-zod');
+const { validateBodyZod } = require('../middlewares/validate-zod');
 const { BusinessException } = require('../common/utils/error');
 
 router.post('/create', validateBodyZod(createCategorySchema), async function (req, res) {
@@ -11,13 +11,13 @@ router.post('/create', validateBodyZod(createCategorySchema), async function (re
   if (category) {
     throw new BusinessException('CATEGORY_EXIST')
   }
-  const data = await categoryModel.create({ name, user_id: req.user.id });
+  const data = await categoryModel.create({ ...req.body, user_id: req.user.id });
   res.success(data[0]);
 });
 
-router.post('/delete', validateBodyZod(deleteCategorySchema), async function (req, res) {
+router.post('/delete', validateBodyZod(deleteOneSchema), async function (req, res) {
   const { id } = req.body;
-  const data = await categoryModel.remove({ id, user_id: req.user.id });
+  const data = await categoryModel.delete({ id, user_id: req.user.id });
   res.success(!!data);
 });
 

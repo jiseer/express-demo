@@ -1,23 +1,37 @@
 const { HttpError, BusinessException } = require("../common/utils/error");
 
+/**
+  code?: string;      // PostgreSQL / MySQL
+  errno?: number;     // MySQL
+  sqlState?: string;  // MySQL
+  constraint?: string;// PostgreSQL
+ */
+function isSqlError(err) {
+  return (
+    err &&
+    typeof err === 'object' &&
+    (typeof err.code === 'string' || typeof err.errno === 'number')
+  );
+}
+const defaultMessage = 'Server Error';
+
 module.exports = function () {
   return function (error, req, res, next) {
-    const message = error.message || 'Server Error';
-    let code;
+    let message = error.message || defaultMessage;
+    let status = error.status || 500;
+    let code = status;
     let objMsg = {}, data = null;
-    if (error instanceof HttpError) {
-      code = error.status;
-    } else if (error instanceof BusinessException) {
+    if (error instanceof BusinessException) {
       code = error.errorCode;
       objMsg.errorCode = code;
       objMsg.extraData = error.extraData;
       data = error.data;
-    } else {
-      code = 500;
+    } else if (isSqlError(error)) {
+      message = defaultMessage;
     }
     if (req.log) {
-      req.log.error(objMsg, message);
+      req.log.error(objMsg, error.message);
     }
-    res.status(error.status || 500).json({ code: code, message, data });
+    res.status(status).json({ code: code, message, data });
   }
 }
