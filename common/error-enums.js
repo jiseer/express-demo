@@ -3,6 +3,7 @@ module.exports = {
   TOO_MANY_REQUESTS: '1002:请求太频繁了',
   API_REQUEST_404: '1003:接口找不到',
   TO_LOGIN: '1004:需要先登录',
+  UNREACHABLE: '1005:Unreachable',
 
   // user
   USER_EXIST: '1101:用户已存在',

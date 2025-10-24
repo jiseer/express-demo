@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { createCategorySchema, deleteOneSchema } = require('../common/validate-schema')
+const { categorySchema, deleteOneSchema } = require('../common/validate-schema')
 const { categoryModel } = require('../lib/db')
 const { validateBodyZod } = require('../middlewares/validate-zod');
 const { BusinessException } = require('../common/utils/error');
 
-router.post('/create', validateBodyZod(createCategorySchema), async function (req, res) {
+router.post('/create', validateBodyZod(categorySchema.create), async function (req, res) {
   const { name } = req.body;
   const category = await categoryModel.findOne({ name });
   if (category) {
