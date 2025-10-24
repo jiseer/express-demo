@@ -41,3 +41,7 @@ transactionSchema.details = z.object({
   categoryIds: z.array(z.number()).optional()
 })
 
+transactionSchema.sum = transactionSchema.details.extend({
+  type: categorySchema.create.shape.type
+})
+

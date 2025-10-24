@@ -26,25 +26,23 @@ router.post('/delete', validateBodyZod(deleteOneSchema), async function (req, re
 
 router.get('/details', validateBodyZod(transactionSchema.details), async function (req, res) {
   const { year, month, categoryIds } = req.body;
-  const c_name = categoryModel.tableName;
   const tModel = transactionModel;
-  const t_name = tModel.tableName;
+  const cModel = categoryModel;
   const date = dayjs([year, month]);
   const between = [
     dayjs(date).startOf('month').toDate(),
     dayjs(date).endOf('month').toDate()
   ];
   const db = tModel.getDb();
-  query = db(t_name).join(c_name, `${t_name}.category_id`, `${c_name}.id`).whereBetween('date', between).where(`${t_name}.user_id`, req.user.id)
+  query = db(tModel.tableName).join(cModel.tableName, tModel.c('category_id'), cModel.c('id')).whereBetween(`${tModel.c('date')}`, between).where(`${tModel.c('user_id')}`, req.user.id)
   if (categoryIds?.length) {
-    query = query.whereIn(`${t_name}.category_id`, categoryIds);
+    query = query.whereIn(`${tModel.c('category_id')}`, categoryIds);
   }
   const listDetails = await query.select([
-    db.raw(`${t_name}.id as id`),
-    ...tModel.defaultColumns,
-    tModel.getDateColumnAs('%Y-%m-%d', 'dateByDay'),
-    db.raw(`${c_name}.type as categoryType`)
-  ]).orderBy('date', 'desc');
+    ...tModel.columnsInTable,
+    db.raw(`${tModel.formatDate(`${tModel.c('date')}`, '%Y-%m-%d')} AS dateByDay`),
+    db.raw(`${cModel.c('type')} as categoryType`)
+  ]).orderBy(`${tModel.c('date')}`, 'desc');
 
   const detailsMap = {};
   const detailsKeys = [];
@@ -84,5 +82,31 @@ router.get('/details', validateBodyZod(transactionSchema.details), async functio
   }
   res.success(details)
 });
+
+router.get('/sum', validateBodyZod(transactionSchema.sum), async function (req, res) {
+  const { type, year, month, categoryIds } = req.body;
+  const tModel = transactionModel;
+  const cModel = categoryModel;
+  const db = tModel.getDb();
+  const date = dayjs([year, month]);
+  const between = [
+    dayjs(date).startOf('month').toDate(),
+    dayjs(date).endOf('month').toDate()
+  ];
+  let query = db(tModel.tableName).join(cModel.tableName, tModel.c('category_id'), cModel.c('id')).whereBetween(`${tModel.c('date')}`, between).where(`${tModel.c('user_id')}`, req.user.id).select([
+    db.raw(`${cModel.c('id')} as id`),
+    db.raw(`${cModel.c('name')} as name`),
+    db.raw(`${tModel.formatAmount(`SUM(${tModel.c('amount')})`)} AS amount`)
+  ])
+
+  if (type) {
+    query = query.where(`${cModel.c('type')}`, type);
+  }
+  if (categoryIds?.length) {
+    query = query.whereIn(`${cModel.c('id')}`, categoryIds);
+  }
+  const list = await query.groupBy('name', 'id').orderBy('amount')
+  res.success(list)
+})
 
 module.exports = router;
