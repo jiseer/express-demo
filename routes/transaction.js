@@ -34,7 +34,7 @@ router.get('/details', validateBodyZod(transactionSchema.details), async functio
     dayjs(date).endOf('month').toDate()
   ];
   const db = tModel.getDb();
-  query = db(tModel.tableName).join(cModel.tableName, tModel.c('category_id'), cModel.c('id')).whereBetween(`${tModel.c('date')}`, between).where(`${tModel.c('user_id')}`, req.user.id)
+  query = db(tModel.tableName).join(cModel.tableName, tModel.c('category_id'), cModel.c('id')).whereBetween(`${tModel.c('date')}`, between).where(`${tModel.c('user_id')}`, req.user.id).whereNull(tModel.c(tModel.deleteAtKey)).whereNull(cModel.c(cModel.deleteAtKey))
   if (categoryIds?.length) {
     query = query.whereIn(`${tModel.c('category_id')}`, categoryIds);
   }
@@ -85,28 +85,65 @@ router.get('/details', validateBodyZod(transactionSchema.details), async functio
 
 router.get('/sum', validateBodyZod(transactionSchema.sum), async function (req, res) {
   const { type, year, month, categoryIds } = req.body;
-  const tModel = transactionModel;
-  const cModel = categoryModel;
-  const db = tModel.getDb();
-  const date = dayjs([year, month]);
-  const between = [
-    dayjs(date).startOf('month').toDate(),
-    dayjs(date).endOf('month').toDate()
-  ];
-  let query = db(tModel.tableName).join(cModel.tableName, tModel.c('category_id'), cModel.c('id')).whereBetween(`${tModel.c('date')}`, between).where(`${tModel.c('user_id')}`, req.user.id).select([
-    db.raw(`${cModel.c('id')} as id`),
-    db.raw(`${cModel.c('name')} as name`),
-    db.raw(`${tModel.formatAmount(`SUM(${tModel.c('amount')})`)} AS amount`)
-  ])
+  await transactionModel.getDb().transaction(async function (trx) {
+    const tModel = new transactionModel.constructor(trx);
+    const cModel = new categoryModel.constructor(trx);
+    const db = tModel.getDb();
+    const date = dayjs([year, month]);
 
-  if (type) {
-    query = query.where(`${cModel.c('type')}`, type);
-  }
-  if (categoryIds?.length) {
-    query = query.whereIn(`${cModel.c('id')}`, categoryIds);
-  }
-  const list = await query.groupBy('name', 'id').orderBy('amount')
-  res.success(list)
+    const createBaseQuery = (dateType) => {
+      const between = [
+        dayjs(date).startOf(dateType).toDate(),
+        dayjs(date).endOf(dateType).toDate()
+      ];
+      tModel.asTableName = 't_select_table'
+      const t_select_table = tModel.findAll({
+        user_id: req.user.id,
+      }, '*').whereBetween(`${tModel.c('date')}`, between).whereNull(tModel.c(tModel.deleteAtKey)).orderBy('date', 'asc').as(tModel.asTableName);
+
+      let baseQuery = db(cModel.tableName).join(t_select_table, tModel.c2('category_id'), cModel.c('id')).whereNull(cModel.c(cModel.deleteAtKey))
+
+      if (type) {
+        baseQuery = baseQuery.where(`${cModel.c('type')}`, type);
+      }
+      if (categoryIds?.length) {
+        baseQuery = baseQuery.whereIn(`${cModel.c('id')}`, categoryIds);
+      }
+
+      return baseQuery;
+    }
+
+    // 日对比
+    let dayQuery = createBaseQuery('month');
+    dayQuery = dayQuery.select([
+      db.raw(`${tModel.formatAmount(`SUM(${tModel.c2('amount')})`)} AS amount`),
+      db.raw(`${tModel.formatDate(tModel.c2('date'), '%Y-%m-%d')} AS date`),
+    ])
+    const dailyComparisonList = await dayQuery.groupBy(2).forUpdate()
+
+    // 月对比
+    let monthlyQuery = createBaseQuery('year');
+    monthlyQuery = monthlyQuery.select([
+      db.raw(`${tModel.formatAmount(`SUM(${tModel.c2('amount')})`)} AS amount`),
+      db.raw(`${tModel.formatDate(tModel.c2('date'), '%Y-%m')} AS date`),
+    ])
+    const monthlyComparisonList = await monthlyQuery.groupBy(2)
+
+    // 月 支出/入账 构成
+    let compositionQuery = createBaseQuery('month');
+    compositionQuery.select([
+      db.raw(`${cModel.c('id')} as id`),
+      db.raw(`${cModel.c('name')} as name`),
+      db.raw(`${tModel.formatAmount(`SUM(${tModel.c2('amount')})`)} AS amount`)
+    ])
+    const compositionList = await compositionQuery.groupBy('name', 'id').orderBy('amount');
+
+    res.success({
+      compositionList,
+      dailyComparisonList,
+      monthlyComparisonList,
+    })
+  });
 })
 
 module.exports = router;
